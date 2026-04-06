@@ -33,6 +33,15 @@ interface LLMResponse {
   }>;
 }
 
+interface Tool {
+  type: string;
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
 export async function queryDatabricks(sql: string): Promise<Record<string, unknown>[]> {
   const res = await fetch(`${HOST}/api/2.0/sql/statements`, {
     method: "POST",
@@ -66,7 +75,7 @@ export async function queryDatabricks(sql: string): Promise<Record<string, unkno
 
 export async function callDatabricksLLM(
   messages: LLMMessage[],
-  tools: object[]
+  tools: Tool[]
 ): Promise<LLMResponse> {
   const res = await fetch(
     `${HOST}/serving-endpoints/databricks-meta-llama-3-3-70b-instruct/invocations`,
