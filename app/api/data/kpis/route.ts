@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
       count: currentRows.length,
     });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Failed to fetch KPIs" }, { status: 500 });
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
