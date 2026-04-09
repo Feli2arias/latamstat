@@ -77,7 +77,10 @@ export async function queryDatabricks(sql: string): Promise<Record<string, unkno
     }),
   });
 
-  if (!res.ok) throw new Error(`Databricks error: ${res.statusText}`);
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Databricks error ${res.status}: ${body}`);
+  }
 
   const json = await res.json();
   const state = json.status?.state;
