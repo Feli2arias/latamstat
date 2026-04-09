@@ -618,7 +618,7 @@ function Sidebar({
 
 export default function Dashboard() {
   const [indicator, setIndicator] = useState("Annual CPI growth rate");
-  const [countries, setCountries] = useState(["Argentina", "Brazil", "Mexico", "Chile", "Colombia"]);
+  const [countries, setCountries] = useState(["Brazil", "Mexico", "Chile", "Colombia"]);
   const [availableCountries, setAvailableCountries] = useState<string[]>(ALL_COUNTRIES);
   const [countriesLoading, setCountriesLoading] = useState(false);
   const [yearFrom, setYearFrom] = useState(2000);
