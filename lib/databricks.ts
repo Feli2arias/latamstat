@@ -75,7 +75,8 @@ export async function queryDatabricks(sql: string): Promise<Record<string, unkno
 
 export async function callDatabricksLLM(
   messages: LLMMessage[],
-  tools: Tool[]
+  tools: Tool[],
+  maxTokens = 900
 ): Promise<LLMResponse> {
   const res = await fetch(
     `${HOST}/serving-endpoints/databricks-meta-llama-3-3-70b-instruct/invocations`,
@@ -89,7 +90,7 @@ export async function callDatabricksLLM(
         messages,
         tools,
         tool_choice: "auto",
-        max_tokens: 1024,
+        max_tokens: maxTokens,
         temperature: 0.1,
       }),
     }
@@ -124,7 +125,7 @@ Indicadores disponibles (10 indicadores, 45.801 filas, años 1950–2025):
   - Net foreign direct investment    (category: Economy,    ~1.428 filas,  1980–2024)
   - Unemployment rate                (category: Labor,      ~1.072 filas,  2010–2024)
   - Literacy rate (15+ years)        (category: Education,  ~838 filas,    1970–2024)
-  - Population in poverty            (category: Poverty,    ~554 filas,    1997–2025)
+  - Population in poverty (national) (category: Poverty,    ~554 filas,    1997–2025)
   - GDP per capita (PPP)             (category: Economy,    ~480 filas,    2017–2021)
   - Gini index                       (category: Inequality, ~311 filas,    2000–2024)
 

@@ -1,32 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
-import { queryDatabricks, callDatabricksLLM, DB_SCHEMA } from "@/lib/databricks";
+import { queryDatabricks, callDatabricksLLM } from "@/lib/databricks";
 
-const SYSTEM_PROMPT = `Sos un asistente experto en datos socioeconómicos de América Latina y el Caribe.
-Tenés acceso a una base de datos en Databricks con datos de CEPALSTAT para más de 30 países de la región.
+// Compact schema for quick chat — saves tokens
+const QUICK_SCHEMA = `
+Tabla: workspace.default.cepal_indicators
+Columnas clave: iso3, country_name, year, indicator_name, category, value, unit
+Indicadores (indicator_name exacto):
+- "Annual CPI growth rate" (categoría: Inflation, años: 1971-2025)
+- "Population in poverty" (categoría: Poverty, años: 1997-2025)
+- "Gini index" (categoría: Inequality, años: 2000-2024)
+- "GDP per capita (PPP)" (categoría: Economy, años: 2017-2021)
+- "Unemployment rate" (categoría: Labor, años: 2010-2024)
+- "Life expectancy at birth" (categoría: Health, años: 1950-2100)
+- "Infant mortality rate" (categoría: Health, años: 1950-2100)
+- "Public debt as % of GDP" (categoría: Fiscal, años: 1990-2023)
+- "Literacy rate (15+ years)" (categoría: Education, años: 1970-2024)
+- "Net foreign direct investment" (categoría: Economy, años: 1980-2024)
+Países: ~33 países de América Latina y el Caribe. Siempre usá: workspace.default.cepal_indicators
+`;
 
-${DB_SCHEMA}
+const SYSTEM_PROMPT = `Sos un asistente de datos socioeconómicos de América Latina. Respondé en máximo 4 oraciones cortas, en español rioplatense. Usá la herramienta query_databricks para consultar datos reales. Nunca inventes datos. Citá siempre el año y el país.
 
-Cuando el usuario hace una pregunta sobre datos, usá la herramienta query_databricks para obtener los datos reales.
-Podés hacer múltiples consultas si necesitás comparar indicadores o países.
-Respondé siempre en español, de forma concisa y clara.
-Citá siempre el período y los países en tu respuesta.
-Nunca inventes datos — si no tenés acceso, decilo claramente.`;
+${QUICK_SCHEMA}`;
 
 const TOOLS = [
   {
     type: "function",
     function: {
       name: "query_databricks",
-      description:
-        "Ejecuta una consulta SQL en Databricks y devuelve resultados reales. Usá esta herramienta cuando necesités datos para responder.",
+      description: "Ejecuta SQL en Databricks. Usá LIMIT 20 siempre.",
       parameters: {
         type: "object",
         properties: {
-          sql: {
-            type: "string",
-            description:
-              "La consulta SQL a ejecutar. Siempre usá workspace.default.cepal_indicators como nombre de la tabla.",
-          },
+          sql: { type: "string", description: "SQL a ejecutar contra workspace.default.cepal_indicators" },
         },
         required: ["sql"],
       },
@@ -34,66 +40,54 @@ const TOOLS = [
   },
 ];
 
-const MAX_ITERATIONS = 5;
-
 export async function POST(req: NextRequest) {
   try {
     const { messages } = await req.json();
+
+    // Only keep last 6 messages to limit context size
+    const recentMessages = messages.slice(-6);
 
     const thread: Array<{
       role: "system" | "user" | "assistant" | "tool";
       content: string | null;
       tool_calls?: Array<{ id: string; type: "function"; function: { name: string; arguments: string } }>;
       tool_call_id?: string;
-    }> = [{ role: "system", content: SYSTEM_PROMPT }, ...messages];
+    }> = [{ role: "system", content: SYSTEM_PROMPT }, ...recentMessages];
 
-    for (let i = 0; i < MAX_ITERATIONS; i++) {
-      const response = await callDatabricksLLM(thread, TOOLS);
+    for (let i = 0; i < 4; i++) {
+      const response = await callDatabricksLLM(thread, TOOLS, 400);
       const choice = response.choices[0];
-      const assistantMsg = choice.message;
+      const msg = choice.message;
 
-      // Append assistant message to thread
       thread.push({
         role: "assistant",
-        content: assistantMsg.content ?? null,
-        ...(assistantMsg.tool_calls ? { tool_calls: assistantMsg.tool_calls } : {}),
+        content: msg.content ?? null,
+        ...(msg.tool_calls ? { tool_calls: msg.tool_calls } : {}),
       });
 
-      // If no tool calls, the model is done — return the response
-      if (choice.finish_reason !== "tool_calls" || !assistantMsg.tool_calls?.length) {
-        return NextResponse.json({ response: assistantMsg.content ?? "" });
+      if (choice.finish_reason !== "tool_calls" || !msg.tool_calls?.length) {
+        return NextResponse.json({ response: msg.content ?? "" });
       }
 
-      // Execute each tool call and append results
-      for (const toolCall of assistantMsg.tool_calls) {
-        let toolResult: string;
-
+      for (const toolCall of msg.tool_calls) {
+        let result: string;
         if (toolCall.function.name === "query_databricks") {
           try {
             const { sql } = JSON.parse(toolCall.function.arguments) as { sql: string };
             const rows = await queryDatabricks(sql);
-            toolResult = JSON.stringify(rows.slice(0, 50));
+            result = JSON.stringify(rows.slice(0, 20));
           } catch (e) {
-            toolResult = `Error ejecutando la consulta: ${String(e)}`;
+            result = `Error: ${String(e)}`;
           }
         } else {
-          toolResult = `Herramienta desconocida: ${toolCall.function.name}`;
+          result = "Herramienta no disponible";
         }
-
-        thread.push({
-          role: "tool",
-          content: toolResult,
-          tool_call_id: toolCall.id,
-        });
+        thread.push({ role: "tool", content: result, tool_call_id: toolCall.id });
       }
     }
 
-    // Safety fallback: max iterations reached
-    return NextResponse.json({
-      response: "Alcancé el límite de consultas. Por favor reformulá la pregunta.",
-    });
+    return NextResponse.json({ response: "Demasiadas consultas. Reformulá la pregunta." });
   } catch (e) {
-    console.error(e);
     const msg = e instanceof Error ? e.message : "Error desconocido";
     return NextResponse.json({ response: `Error: ${msg}` }, { status: 500 });
   }
