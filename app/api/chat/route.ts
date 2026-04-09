@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryDatabricks, callDatabricksLLM } from "@/lib/databricks";
 
+export const maxDuration = 30;
+
 // Compact schema for quick chat — saves tokens
 const QUICK_SCHEMA = `
 Tabla: workspace.default.cepal_indicators

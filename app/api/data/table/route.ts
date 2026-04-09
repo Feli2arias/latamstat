@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryDatabricks } from "@/lib/databricks";
 
+export const maxDuration = 30;
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const year = searchParams.get("year") || "2024";
