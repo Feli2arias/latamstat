@@ -42,6 +42,27 @@ interface Tool {
   };
 }
 
+async function fetchStatementResult(statementId: string): Promise<Record<string, unknown>[]> {
+  for (let i = 0; i < 24; i++) {
+    await new Promise((r) => setTimeout(r, 5000));
+    const res = await fetch(`${HOST}/api/2.0/sql/statements/${statementId}`, {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    if (!res.ok) throw new Error(`Databricks poll error: ${res.statusText}`);
+    const json = await res.json();
+    const state = json.status?.state;
+    if (state === "SUCCEEDED") {
+      const columns: string[] = json.manifest.schema.columns.map((c: { name: string }) => c.name);
+      const rows: unknown[][] = json.result?.data_array ?? [];
+      return rows.map((row) => Object.fromEntries(columns.map((col, i) => [col, row[i]])));
+    }
+    if (state === "FAILED" || state === "CANCELED" || state === "CLOSED") {
+      throw new Error(`Query ${state}: ${JSON.stringify(json.status)}`);
+    }
+  }
+  throw new Error("Databricks query timed out after 120s");
+}
+
 export async function queryDatabricks(sql: string): Promise<Record<string, unknown>[]> {
   const res = await fetch(`${HOST}/api/2.0/sql/statements`, {
     method: "POST",
@@ -59,18 +80,19 @@ export async function queryDatabricks(sql: string): Promise<Record<string, unkno
   if (!res.ok) throw new Error(`Databricks error: ${res.statusText}`);
 
   const json = await res.json();
-  if (json.status?.state !== "SUCCEEDED") {
-    throw new Error(`Query failed: ${JSON.stringify(json.status)}`);
+  const state = json.status?.state;
+
+  if (state === "SUCCEEDED") {
+    const columns: string[] = json.manifest.schema.columns.map((c: { name: string }) => c.name);
+    const rows: unknown[][] = json.result?.data_array ?? [];
+    return rows.map((row) => Object.fromEntries(columns.map((col, i) => [col, row[i]])));
   }
 
-  const columns: string[] = json.manifest.schema.columns.map(
-    (c: { name: string }) => c.name
-  );
-  const rows: unknown[][] = json.result?.data_array ?? [];
+  if (state === "PENDING" || state === "RUNNING") {
+    return fetchStatementResult(json.statement_id);
+  }
 
-  return rows.map((row) =>
-    Object.fromEntries(columns.map((col, i) => [col, row[i]]))
-  );
+  throw new Error(`Query failed: ${JSON.stringify(json.status)}`);
 }
 
 export async function callDatabricksLLM(

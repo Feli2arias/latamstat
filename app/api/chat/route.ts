@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryDatabricks, callDatabricksLLM } from "@/lib/databricks";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 // Compact schema for quick chat — saves tokens
 const QUICK_SCHEMA = `

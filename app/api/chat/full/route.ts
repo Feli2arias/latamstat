@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryDatabricks, callDatabricksLLM, DB_SCHEMA } from "@/lib/databricks";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const SYSTEM_PROMPT = `Sos una analista de datos socioeconómicos de América Latina especializada en política pública. Respondés en español rioplatense con análisis profundo y recomendaciones concretas. Saludá al usuario sin usar ningún nombre.
 
