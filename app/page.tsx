@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import createGlobe, { COBEOptions } from "cobe";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { ArrowRight, BarChart3, Brain, Database, TrendingUp, Zap } from "lucide-react";
+import { ArrowRight, BarChart3, Brain, Database, TrendingUp, Zap, Scale, DollarSign, PieChart, TrendingDown, Users, Landmark, Ship, CreditCard, Star, Heart } from "lucide-react";
 import clsx from "clsx";
 
 function cn(...classes: (string | undefined | false | null)[]) {
@@ -594,16 +594,16 @@ function StatsSection() {
 // ─── Indicators ───────────────────────────────────────────────────────────────
 
 const INDICATORS = [
-  { name: "Índice Gini", desc: "Desigualdad de ingresos", icon: "⚖️" },
-  { name: "PIB per cápita", desc: "Producto bruto por persona", icon: "💰" },
-  { name: "Tasa de pobreza", desc: "Población bajo línea de pobreza", icon: "📊" },
-  { name: "Inflación", desc: "Variación del IPC anual", icon: "📈" },
-  { name: "Desempleo", desc: "Tasa de desocupación", icon: "👥" },
-  { name: "Gasto social", desc: "% del PIB en gasto público social", icon: "🏛️" },
-  { name: "Exportaciones", desc: "Valor total exportado (USD)", icon: "🚢" },
-  { name: "Deuda externa", desc: "% del PIB", icon: "📋" },
-  { name: "IDH", desc: "Índice de Desarrollo Humano", icon: "🌟" },
-  { name: "Mortalidad infantil", desc: "Por cada 1,000 nacidos vivos", icon: "❤️" },
+  { name: "Índice Gini", desc: "Desigualdad de ingresos", icon: Scale, accent: "#c0c1ff" },
+  { name: "PIB per cápita", desc: "Producto bruto por persona", icon: DollarSign, accent: "#4f8ef7" },
+  { name: "Tasa de pobreza", desc: "Población bajo línea de pobreza", icon: PieChart, accent: "#ff6b35" },
+  { name: "Inflación", desc: "Variación del IPC anual", icon: TrendingDown, accent: "#f7934f" },
+  { name: "Desempleo", desc: "Tasa de desocupación", icon: Users, accent: "#c0c1ff" },
+  { name: "Gasto social", desc: "% del PIB en gasto público social", icon: Landmark, accent: "#4f8ef7" },
+  { name: "Exportaciones", desc: "Valor total exportado (USD)", icon: Ship, accent: "#ff6b35" },
+  { name: "Deuda externa", desc: "% del PIB", icon: CreditCard, accent: "#f7934f" },
+  { name: "IDH", desc: "Índice de Desarrollo Humano", icon: Star, accent: "#c0c1ff" },
+  { name: "Mortalidad infantil", desc: "Por cada 1,000 nacidos vivos", icon: Heart, accent: "#ff6b35" },
 ];
 
 function IndicatorsSection() {
@@ -641,7 +641,10 @@ function IndicatorsSection() {
               transition={{ duration: 0.4, delay: i * 0.05 }}
               className="flex items-center gap-4 p-4 rounded-xl border border-[#1a1a2e] bg-[#0b0b14] hover:border-[#252535] hover:bg-[#0d0d18] transition-all duration-200 group"
             >
-              <span className="text-xl leading-none">{ind.icon}</span>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                style={{ background: `${ind.accent}12`, border: `1px solid ${ind.accent}25` }}>
+                <ind.icon style={{ color: ind.accent, width: 16, height: 16 }} />
+              </div>
               <div className="flex-1 min-w-0">
                 <div
                   className="text-sm font-semibold text-[#e2e2eb] group-hover:text-white transition-colors"
