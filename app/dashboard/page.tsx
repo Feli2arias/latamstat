@@ -10,7 +10,7 @@ import Link from "next/link";
 import {
   ArrowUpRight, ArrowDownRight, Minus,
   Send, X, Maximize2, RotateCcw,
-  BarChart2, Brain, Sparkles, Sun, Moon,
+  BarChart2, Brain, Sparkles, Sun, Moon, Download, TrendingUp,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -167,6 +167,34 @@ const QUICK_SUGGESTIONS = [
 
 function cn(...classes: (string | undefined | false | null)[]) {
   return clsx(...classes);
+}
+
+function linearRegression(points: { x: number; y: number }[]) {
+  const n = points.length;
+  const sumX = points.reduce((s, p) => s + p.x, 0);
+  const sumY = points.reduce((s, p) => s + p.y, 0);
+  const sumXY = points.reduce((s, p) => s + p.x * p.y, 0);
+  const sumXX = points.reduce((s, p) => s + p.x * p.x, 0);
+  const denom = n * sumXX - sumX * sumX;
+  if (denom === 0) return { slope: 0, intercept: sumY / n };
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+  return { slope, intercept };
+}
+
+function exportCSV(data: TimeseriesData, indicatorLabel: string) {
+  const headers = ["year", ...data.countries].join(",");
+  const rows = data.data.map(row =>
+    [row.year, ...data.countries.map(c => row[c] ?? "")].join(",")
+  );
+  const csv = [headers, ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${indicatorLabel.replace(/\s+/g, "_")}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ─── Chart Tooltip ────────────────────────────────────────────────────────────
@@ -851,6 +879,7 @@ export default function Dashboard() {
   const [tsLoading, setTsLoading] = useState(true);
 
   const [fullChatOpen, setFullChatOpen] = useState(false);
+  const [showForecast, setShowForecast] = useState(false);
   const [fullChatMessages, setFullChatMessages] = useState<FullMessage[]>([
     {
       role: "assistant",
@@ -1002,9 +1031,39 @@ export default function Dashboard() {
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <p className="text-sm font-bold" style={{ color: t.text }}>Evolución histórica</p>
-                  <p className="text-[10px] font-mono mt-0.5" style={{ color: t.textDim }}>{indicatorLabel} · {yearFrom}–{yearTo}</p>
+                  <p className="text-[10px] font-mono mt-0.5" style={{ color: t.textDim }}>
+                    {indicatorLabel} · {yearFrom}–{yearTo}{showForecast ? `–${yearTo + 3} (predicción)` : ""}
+                  </p>
                 </div>
-                <BarChart2 className="w-4 h-4" style={{ color: t.textFaint }} />
+                <div className="flex items-center gap-2">
+                  {tsData?.data?.length ? (
+                    <>
+                      <button
+                        onClick={() => setShowForecast(p => !p)}
+                        className="flex items-center gap-1.5 text-[10px] font-mono px-2.5 py-1.5 rounded-lg transition-all"
+                        style={{
+                          color: showForecast ? t.accent : t.textDim,
+                          border: `1px solid ${showForecast ? t.accentBorderMid : t.border}`,
+                          background: showForecast ? t.accentBg : "transparent",
+                        }}
+                      >
+                        <TrendingUp className="w-3 h-3" />
+                        {showForecast ? "Ocultar predicción" : "Predecir +3 años"}
+                      </button>
+                      <button
+                        onClick={() => exportCSV(tsData, indicatorLabel)}
+                        className="flex items-center gap-1.5 text-[10px] font-mono px-2.5 py-1.5 rounded-lg transition-all"
+                        style={{ color: t.textDim, border: `1px solid ${t.border}` }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = t.textSub; e.currentTarget.style.borderColor = t.borderMid; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = t.textDim; e.currentTarget.style.borderColor = t.border; }}
+                      >
+                        <Download className="w-3 h-3" />
+                        CSV
+                      </button>
+                    </>
+                  ) : null}
+                  <BarChart2 className="w-4 h-4" style={{ color: t.textFaint }} />
+                </div>
               </div>
 
               {tsLoading ? (
@@ -1020,11 +1079,41 @@ export default function Dashboard() {
                   </div>
                 </div>
               ) : tsData?.data?.length ? (() => {
+                // Compute forecast
+                const forecastRegressions: Record<string, { slope: number; intercept: number }> = {};
+                if (showForecast) {
+                  for (const country of tsData.countries) {
+                    const pts = tsData.data
+                      .filter(row => typeof row[country] === "number" && !isNaN(row[country] as number))
+                      .map(row => ({ x: Number(row.year), y: row[country] as number }));
+                    if (pts.length >= 2) forecastRegressions[country] = linearRegression(pts);
+                  }
+                }
+
+                const lastYear = Math.max(...tsData.data.map(row => Number(row.year)));
+                const forecastRows = showForecast
+                  ? [1, 2, 3].map(offset => {
+                      const yr = lastYear + offset;
+                      const row: Record<string, number> = { year: yr };
+                      for (const c of tsData.countries) {
+                        if (forecastRegressions[c]) {
+                          const { slope, intercept } = forecastRegressions[c];
+                          row[`${c}_pred`] = parseFloat((slope * yr + intercept).toFixed(3));
+                        }
+                      }
+                      return row;
+                    })
+                  : [];
+
+                const chartData = [...tsData.data, ...forecastRows];
+
                 const allValues: number[] = [];
-                for (const row of tsData.data) {
+                for (const row of chartData) {
                   for (const country of tsData.countries) {
                     const v = row[country];
                     if (typeof v === "number" && !isNaN(v)) allValues.push(v);
+                    const vp = row[`${country}_pred`];
+                    if (typeof vp === "number" && !isNaN(vp)) allValues.push(vp);
                   }
                 }
                 const minVal = Math.min(...allValues);
@@ -1034,9 +1123,10 @@ export default function Dashboard() {
                   parseFloat((Math.max(0, minVal - padding)).toFixed(3)),
                   parseFloat((maxVal + padding).toFixed(3)),
                 ];
+
                 return (
                   <ResponsiveContainer width="100%" height={280}>
-                    <LineChart data={tsData.data} margin={{ top: 4, right: 20, left: -10, bottom: 4 }}>
+                    <LineChart data={chartData} margin={{ top: 4, right: 20, left: -10, bottom: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={t.border} />
                       <XAxis
                         dataKey="year"
@@ -1066,6 +1156,21 @@ export default function Dashboard() {
                           connectNulls
                         />
                       ))}
+                      {showForecast && tsData.countries.map((country, i) =>
+                        forecastRegressions[country] ? (
+                          <Line
+                            key={`${country}_pred`}
+                            type="monotone"
+                            dataKey={`${country}_pred`}
+                            stroke={t.chartColors[i % t.chartColors.length]}
+                            strokeWidth={2}
+                            strokeDasharray="6 4"
+                            dot={{ r: 3, fill: t.chartColors[i % t.chartColors.length] }}
+                            name={`${country} (pred.)`}
+                            connectNulls
+                          />
+                        ) : null
+                      )}
                     </LineChart>
                   </ResponsiveContainer>
                 );
