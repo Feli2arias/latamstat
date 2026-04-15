@@ -445,18 +445,14 @@ function QuickAIPanel({ onOpenFull, indicator }: { onOpenFull: () => void; indic
 // ─── Full Chat Modal ───────────────────────────────────────────────────────────
 
 function FullChatModal({
-  onClose, context,
+  onClose, context, messages, setMessages,
 }: {
   onClose: () => void;
   context: { indicator: string; countries: string[]; yearFrom: number; yearTo: number };
+  messages: FullMessage[];
+  setMessages: React.Dispatch<React.SetStateAction<FullMessage[]>>;
 }) {
   const t = useTheme();
-  const [messages, setMessages] = useState<FullMessage[]>([
-    {
-      role: "assistant",
-      content: `Hola, Ana. Tengo acceso completo a los datos de CEPALSTAT para toda la región. Podés pedirme análisis profundos, comparativas entre países, tendencias históricas o recomendaciones de política para **${INDICATORS.find(i => i.name === context.indicator)?.label ?? context.indicator}**. También puedo generar gráficos automáticamente.`,
-    },
-  ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -855,6 +851,12 @@ export default function Dashboard() {
   const [tsLoading, setTsLoading] = useState(true);
 
   const [fullChatOpen, setFullChatOpen] = useState(false);
+  const [fullChatMessages, setFullChatMessages] = useState<FullMessage[]>([
+    {
+      role: "assistant",
+      content: "Hola, usuario. Tengo acceso completo a los datos de CEPALSTAT para toda la región. Podés pedirme análisis profundos, comparativas entre países, tendencias históricas o recomendaciones de política. También puedo generar gráficos automáticamente.",
+    },
+  ]);
 
   const t = theme;
   const indicatorLabel = INDICATORS.find(i => i.name === indicator)?.label ?? indicator;
@@ -1210,6 +1212,8 @@ export default function Dashboard() {
             <FullChatModal
               onClose={() => setFullChatOpen(false)}
               context={{ indicator, countries, yearFrom, yearTo }}
+              messages={fullChatMessages}
+              setMessages={setFullChatMessages}
             />
           )}
         </AnimatePresence>
