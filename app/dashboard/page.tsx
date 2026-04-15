@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, createContext, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, Cell,
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import Link from "next/link";
 import {
-  ArrowRight, ArrowUpRight, ArrowDownRight, Minus,
-  TrendingUp, Send, X, Maximize2, ChevronDown, RotateCcw,
-  BarChart2, Brain, Sparkles,
+  ArrowUpRight, ArrowDownRight, Minus,
+  Send, X, Maximize2, RotateCcw,
+  BarChart2, Brain, Sparkles, Sun, Moon,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -33,25 +33,120 @@ interface TimeseriesData {
 }
 
 interface QuickMessage { role: "user" | "assistant"; content: string }
+interface FullMessage { role: "user" | "assistant"; content: string }
 
-interface FullMessage {
-  role: "user" | "assistant";
-  content: string;
+// ─── Theme ────────────────────────────────────────────────────────────────────
+
+interface Theme {
+  id: "dark" | "accessible";
+  bg: string;
+  surface: string;
+  surfaceAlt: string;
+  border: string;
+  borderMid: string;
+  borderFaint: string;
+  text: string;
+  textSub: string;
+  textMuted: string;
+  textDim: string;
+  textFaint: string;
+  textTiny: string;
+  textInvisible: string;
+  accent: string;
+  accentHover: string;
+  accentDark: string;
+  accentBg: string;
+  accentBgMed: string;
+  accentBorder: string;
+  accentBorderMid: string;
+  blue: string;
+  blueHover: string;
+  green: string;
+  red: string;
+  kpiAccents: [string, string, string, string];
+  chartColors: string[];
+  modalShadow: string;
 }
+
+const DARK_THEME: Theme = {
+  id: "dark",
+  bg: "#09090f",
+  surface: "#0b0b14",
+  surfaceAlt: "#0e0e18",
+  border: "#1a1a2e",
+  borderMid: "#252535",
+  borderFaint: "#111120",
+  text: "#f0f0fa",
+  textSub: "#e2e2eb",
+  textMuted: "#8585a8",
+  textDim: "#6a6a8a",
+  textFaint: "#464554",
+  textTiny: "#3a3a4e",
+  textInvisible: "#2a2a3e",
+  accent: "#ff6b35",
+  accentHover: "#e55a2b",
+  accentDark: "#d9541e",
+  accentBg: "rgba(255,107,53,0.10)",
+  accentBgMed: "rgba(255,107,53,0.15)",
+  accentBorder: "rgba(255,107,53,0.20)",
+  accentBorderMid: "rgba(255,107,53,0.30)",
+  blue: "#4f8ef7",
+  blueHover: "#7aabff",
+  green: "#34d399",
+  red: "#f87171",
+  kpiAccents: ["#ff6b35", "#4f8ef7", "#f87171", "#34d399"],
+  chartColors: ["#ff6b35", "#4f8ef7", "#c0c1ff", "#34d399", "#f472b6", "#fbbf24", "#a78bfa"],
+  modalShadow: "0 0 80px rgba(79,142,247,0.1), 0 0 160px rgba(255,107,53,0.05)",
+};
+
+// Wong (2011) colorblind-safe palette — works for deuteranopia, protanopia, tritanopia
+const ACCESSIBLE_THEME: Theme = {
+  id: "accessible",
+  bg: "#f4f7fb",
+  surface: "#ffffff",
+  surfaceAlt: "#edf1f7",
+  border: "#dce3ed",
+  borderMid: "#b8c4d2",
+  borderFaint: "#e8edf4",
+  text: "#0f172a",
+  textSub: "#1e293b",
+  textMuted: "#475569",
+  textDim: "#64748b",
+  textFaint: "#94a3b8",
+  textTiny: "#b8c4d2",
+  textInvisible: "#dce3ed",
+  accent: "#0061c8",
+  accentHover: "#004d9e",
+  accentDark: "#003d7a",
+  accentBg: "rgba(0,97,200,0.08)",
+  accentBgMed: "rgba(0,97,200,0.12)",
+  accentBorder: "rgba(0,97,200,0.20)",
+  accentBorderMid: "rgba(0,97,200,0.30)",
+  blue: "#0061c8",
+  blueHover: "#004d9e",
+  green: "#007a5e",
+  red: "#b54708",
+  kpiAccents: ["#0072B2", "#E69F00", "#009E73", "#D55E00"],
+  chartColors: ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442"],
+  modalShadow: "0 0 40px rgba(0,97,200,0.10), 0 4px 24px rgba(0,0,0,0.08)",
+};
+
+const ThemeContext = createContext<Theme>(DARK_THEME);
+const useTheme = () => useContext(ThemeContext);
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const INDICATORS = [
-  { name: "Annual CPI growth rate",        label: "Inflación (IPC)",          category: "Inflation" },
-  { name: "Population in poverty (national)", label: "Pobreza",                category: "Poverty" },
-  { name: "Gini index",                    label: "Desigualdad (Gini)",       category: "Inequality" },
-  { name: "Unemployment rate",             label: "Desempleo",                category: "Labor" },
-  { name: "GDP per capita (PPP)",          label: "PIB per cápita",           category: "Economy" },
-  { name: "Public debt as % of GDP",       label: "Deuda pública",            category: "Fiscal" },
-  { name: "Life expectancy at birth",      label: "Esperanza de vida",        category: "Health" },
-  { name: "Infant mortality rate",         label: "Mortalidad infantil",      category: "Health" },
-  { name: "Literacy rate (15+ years)",     label: "Alfabetización",           category: "Education" },
-  { name: "Net foreign direct investment", label: "Inversión extranjera",     category: "Economy" },
+  { name: "Annual CPI growth rate",           label: "Inflación (IPC)",      category: "Inflation"  },
+  { name: "Population in poverty (national)", label: "Pobreza",              category: "Poverty"    },
+  { name: "Gini index",                       label: "Desigualdad (Gini)",   category: "Inequality" },
+  { name: "Unemployment rate",                label: "Desempleo",            category: "Labor"      },
+  { name: "GDP per capita (PPP)",             label: "PIB per cápita",       category: "Economy"    },
+  { name: "Public debt as % of GDP",          label: "Deuda pública",        category: "Fiscal"     },
+  { name: "Life expectancy at birth",         label: "Esperanza de vida",    category: "Health"     },
+  { name: "Infant mortality rate",            label: "Mortalidad infantil",  category: "Health"     },
+  { name: "Literacy rate (15+ years)",        label: "Alfabetización",       category: "Education"  },
+  { name: "Net foreign direct investment",    label: "Inversión extranjera", category: "Economy"    },
 ];
 
 const ALL_COUNTRIES = [
@@ -60,8 +155,6 @@ const ALL_COUNTRIES = [
   "El Salvador", "Guatemala", "Haiti", "Honduras", "Mexico",
   "Nicaragua", "Panama", "Paraguay", "Peru", "Uruguay", "Venezuela",
 ];
-
-const CHART_COLORS = ["#ff6b35", "#4f8ef7", "#c0c1ff", "#34d399", "#f472b6", "#fbbf24", "#a78bfa"];
 
 const QUICK_SUGGESTIONS = [
   "¿Qué país tiene más desigualdad hoy?",
@@ -76,21 +169,27 @@ function cn(...classes: (string | undefined | false | null)[]) {
   return clsx(...classes);
 }
 
+// ─── Chart Tooltip ────────────────────────────────────────────────────────────
 
-// ─── Chart tooltip ────────────────────────────────────────────────────────────
-
-function DarkTooltip({ active, payload, label }: {
+function ChartTooltip({ active, payload, label }: {
   active?: boolean;
   payload?: Array<{ name: string; value: number; color: string }>;
   label?: string;
 }) {
+  const t = useTheme();
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#0e0e18] border border-[#252535] rounded-xl px-4 py-3 shadow-xl text-xs font-mono">
-      <p className="text-[#8585a8] mb-2">{label}</p>
+    <div
+      className="rounded-xl px-4 py-3 shadow-xl text-xs font-mono"
+      style={{ background: t.surfaceAlt, border: `1px solid ${t.borderMid}` }}
+    >
+      <p className="mb-2" style={{ color: t.textMuted }}>{label}</p>
       {payload.map((p) => (
         <p key={p.name} style={{ color: p.color }}>
-          {p.name}: <span className="font-bold text-[#f0f0fa]">{typeof p.value === "number" ? p.value.toFixed(2) : p.value}</span>
+          {p.name}:{" "}
+          <span className="font-bold" style={{ color: t.text }}>
+            {typeof p.value === "number" ? p.value.toFixed(2) : p.value}
+          </span>
         </p>
       ))}
     </div>
@@ -105,13 +204,17 @@ function KPICard({
   label: string; value: string; subLabel: string; subValue: string;
   accent: string; trend?: string | null; loading?: boolean;
 }) {
+  const t = useTheme();
   const [hovered, setHovered] = useState(false);
   const trendNum = trend ? parseFloat(trend) : null;
 
   return (
     <div
-      className="relative rounded-2xl border border-[#1a1a2e] bg-[#0b0b14] p-5 overflow-hidden transition-all duration-300 cursor-default"
-      style={{ borderColor: hovered ? "#252535" : "#1a1a2e" }}
+      className="relative rounded-2xl p-5 overflow-hidden transition-all duration-300 cursor-default"
+      style={{
+        background: t.surface,
+        border: `1px solid ${hovered ? t.borderMid : t.border}`,
+      }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -134,19 +237,24 @@ function KPICard({
 
       {loading ? (
         <div className="animate-pulse space-y-2">
-          <div className="h-2.5 bg-[#1a1a2e] rounded w-2/3" />
-          <div className="h-8 bg-[#1a1a2e] rounded w-1/2" />
-          <div className="h-2 bg-[#1a1a2e] rounded w-full" />
+          <div className="h-2.5 rounded w-2/3" style={{ background: t.border }} />
+          <div className="h-8 rounded w-1/2" style={{ background: t.border }} />
+          <div className="h-2 rounded w-full" style={{ background: t.border }} />
         </div>
       ) : (
         <div className="relative z-10">
           <div className="flex items-start justify-between mb-2">
-            <span className="text-[10px] font-mono font-semibold text-[#6a6a8a] tracking-widest uppercase">{label}</span>
+            <span
+              className="text-[10px] font-mono font-semibold tracking-widest uppercase"
+              style={{ color: t.textDim }}
+            >
+              {label}
+            </span>
             {trendNum !== null && (
-              <span className={cn(
-                "flex items-center gap-0.5 text-[10px] font-mono font-bold",
-                trendNum > 0 ? "text-[#f87171]" : trendNum < 0 ? "text-[#34d399]" : "text-[#6a6a8a]"
-              )}>
+              <span
+                className="flex items-center gap-0.5 text-[10px] font-mono font-bold"
+                style={{ color: trendNum > 0 ? t.red : trendNum < 0 ? t.green : t.textDim }}
+              >
                 {trendNum > 0 ? <ArrowUpRight className="w-3 h-3" /> : trendNum < 0 ? <ArrowDownRight className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
                 {trendNum > 0 ? "+" : ""}{trendNum.toFixed(1)}%
               </span>
@@ -154,8 +262,8 @@ function KPICard({
           </div>
           <div className="font-mono text-3xl font-bold mb-3" style={{ color: accent }}>{value}</div>
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono text-[#6a6a8a]">{subLabel}</span>
-            <span className="text-[10px] font-mono font-semibold text-[#8585a8]">{subValue}</span>
+            <span className="text-[10px] font-mono" style={{ color: t.textDim }}>{subLabel}</span>
+            <span className="text-[10px] font-mono font-semibold" style={{ color: t.textMuted }}>{subValue}</span>
           </div>
         </div>
       )}
@@ -163,16 +271,10 @@ function KPICard({
   );
 }
 
-
 // ─── Quick AI Panel ───────────────────────────────────────────────────────────
 
-function QuickAIPanel({
-  onOpenFull,
-  indicator,
-}: {
-  onOpenFull: () => void;
-  indicator: string;
-}) {
+function QuickAIPanel({ onOpenFull, indicator }: { onOpenFull: () => void; indicator: string }) {
+  const t = useTheme();
   const [messages, setMessages] = useState<QuickMessage[]>([
     { role: "assistant", content: "Hola! Soy tu asistente de análisis. Haceme preguntas cortas sobre los datos de LATAM." },
   ]);
@@ -180,9 +282,7 @@ function QuickAIPanel({
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   const send = useCallback(async (text: string) => {
     if (!text.trim() || loading) return;
@@ -207,18 +307,30 @@ function QuickAIPanel({
   }, [messages, loading]);
 
   return (
-    <aside className="w-[280px] flex-shrink-0 h-full bg-[#0b0b14] border-l border-[#1a1a2e] flex flex-col">
+    <aside
+      className="w-[280px] flex-shrink-0 h-full flex flex-col"
+      style={{ background: t.surface, borderLeft: `1px solid ${t.border}` }}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-4 border-b border-[#1a1a2e]">
+      <div className="flex items-center justify-between px-4 py-4" style={{ borderBottom: `1px solid ${t.border}` }}>
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: "rgba(255,107,53,0.15)" }}>
-            <Brain className="w-3.5 h-3.5 text-[#ff6b35]" />
+          <div
+            className="w-6 h-6 rounded-lg flex items-center justify-center"
+            style={{ background: t.accentBgMed }}
+          >
+            <Brain className="w-3.5 h-3.5" style={{ color: t.accent }} />
           </div>
-          <span className="text-xs font-mono font-bold text-[#f0f0fa] tracking-wide">Asistente rápido</span>
+          <span className="text-xs font-mono font-bold" style={{ color: t.text }}>Asistente rápido</span>
         </div>
         <button
           onClick={onOpenFull}
-          className="flex items-center gap-1 text-[10px] font-mono text-[#4f8ef7] hover:text-[#7aabff] transition-colors px-2 py-1 rounded-lg border border-[#4f8ef7]/20 hover:border-[#4f8ef7]/40"
+          className="flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded-lg transition-colors"
+          style={{
+            color: t.blue,
+            border: `1px solid ${t.blue}33`,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = t.blueHover; e.currentTarget.style.borderColor = `${t.blue}66`; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = t.blue; e.currentTarget.style.borderColor = `${t.blue}33`; }}
         >
           <Maximize2 className="w-3 h-3" />
           Chat completo
@@ -230,12 +342,12 @@ function QuickAIPanel({
         {messages.map((msg, i) => (
           <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
             <div
-              className={cn(
-                "max-w-[92%] text-[11px] leading-relaxed rounded-xl px-3 py-2 font-mono",
+              className="max-w-[92%] text-[11px] leading-relaxed rounded-xl px-3 py-2 font-mono"
+              style={
                 msg.role === "user"
-                  ? "bg-[#ff6b35]/10 border border-[#ff6b35]/20 text-[#f0f0fa]"
-                  : "bg-[#1a1a2e] border border-[#252535] text-[#e2e2eb]"
-              )}
+                  ? { background: t.accentBg, border: `1px solid ${t.accentBorder}`, color: t.text }
+                  : { background: t.surfaceAlt, border: `1px solid ${t.border}`, color: t.textSub }
+              }
             >
               {msg.content.split(/(\*\*[^*]+\*\*)/).map((part, j) =>
                 part.startsWith("**") && part.endsWith("**")
@@ -248,13 +360,16 @@ function QuickAIPanel({
 
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-[#1a1a2e] border border-[#252535] px-3 py-2 rounded-xl">
+            <div
+              className="px-3 py-2 rounded-xl"
+              style={{ background: t.surfaceAlt, border: `1px solid ${t.border}` }}
+            >
               <span className="flex gap-1.5">
                 {[0, 150, 300].map((d) => (
                   <span
                     key={d}
-                    className="w-1.5 h-1.5 rounded-full bg-[#8585a8] animate-bounce"
-                    style={{ animationDelay: `${d}ms` }}
+                    className="w-1.5 h-1.5 rounded-full animate-bounce"
+                    style={{ background: t.textMuted, animationDelay: `${d}ms` }}
                   />
                 ))}
               </span>
@@ -267,12 +382,25 @@ function QuickAIPanel({
       {/* Suggestions */}
       {messages.length <= 1 && (
         <div className="px-3 pb-2 space-y-1.5">
-          <span className="text-[9px] font-mono text-[#464554] uppercase tracking-widest">Sugerencias</span>
+          <span className="text-[9px] font-mono uppercase tracking-widest" style={{ color: t.textFaint }}>
+            Sugerencias
+          </span>
           {QUICK_SUGGESTIONS.map((s) => (
             <button
               key={s}
               onClick={() => send(s)}
-              className="w-full text-left text-[10px] font-mono text-[#6a6a8a] hover:text-[#e2e2eb] border border-[#1a1a2e] hover:border-[#252535] bg-transparent hover:bg-[#0e0e18] px-3 py-2 rounded-lg transition-all"
+              className="w-full text-left text-[10px] font-mono px-3 py-2 rounded-lg transition-all"
+              style={{ color: t.textDim, border: `1px solid ${t.border}`, background: "transparent" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = t.textSub;
+                e.currentTarget.style.borderColor = t.borderMid;
+                e.currentTarget.style.background = t.surfaceAlt;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = t.textDim;
+                e.currentTarget.style.borderColor = t.border;
+                e.currentTarget.style.background = "transparent";
+              }}
             >
               {s}
             </button>
@@ -281,7 +409,7 @@ function QuickAIPanel({
       )}
 
       {/* Input */}
-      <div className="p-3 border-t border-[#1a1a2e]">
+      <div className="p-3" style={{ borderTop: `1px solid ${t.border}` }}>
         <div className="flex items-end gap-2">
           <textarea
             value={input}
@@ -289,12 +417,22 @@ function QuickAIPanel({
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
             placeholder="Pregunta rápida..."
             rows={2}
-            className="flex-1 bg-[#0e0e18] border border-[#1a1a2e] focus:border-[#ff6b35]/50 rounded-xl px-3 py-2 text-[11px] font-mono text-[#e2e2eb] placeholder:text-[#464554] resize-none focus:outline-none transition-colors"
+            className="flex-1 rounded-xl px-3 py-2 text-[11px] font-mono resize-none focus:outline-none transition-colors"
+            style={{
+              background: t.surfaceAlt,
+              border: `1px solid ${t.border}`,
+              color: t.textSub,
+            }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = `${t.accent}80`; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = t.border; }}
           />
           <button
             onClick={() => send(input)}
             disabled={loading || !input.trim()}
-            className="p-2 rounded-xl bg-[#ff6b35] disabled:opacity-30 hover:bg-[#e55a2b] transition-colors shrink-0"
+            className="p-2 rounded-xl disabled:opacity-30 transition-colors shrink-0"
+            style={{ background: t.accent }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = t.accentHover; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = t.accent; }}
           >
             <Send className="w-3.5 h-3.5 text-white" />
           </button>
@@ -307,12 +445,12 @@ function QuickAIPanel({
 // ─── Full Chat Modal ───────────────────────────────────────────────────────────
 
 function FullChatModal({
-  onClose,
-  context,
+  onClose, context,
 }: {
   onClose: () => void;
   context: { indicator: string; countries: string[]; yearFrom: number; yearTo: number };
 }) {
+  const t = useTheme();
   const [messages, setMessages] = useState<FullMessage[]>([
     {
       role: "assistant",
@@ -323,9 +461,7 @@ function FullChatModal({
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   const send = useCallback(async (text: string) => {
     if (!text.trim() || loading) return;
@@ -334,7 +470,6 @@ function FullChatModal({
     setMessages(updated);
     setInput("");
     setLoading(true);
-
     try {
       const res = await fetch("/api/chat/full", {
         method: "POST",
@@ -372,28 +507,44 @@ function FullChatModal({
         initial={{ scale: 0.95, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.95, y: 20 }}
-        className="relative w-full max-w-4xl h-[85vh] bg-[#09090f] border border-[#1a1a2e] rounded-3xl overflow-hidden flex flex-col shadow-2xl"
-        style={{ boxShadow: "0 0 80px rgba(79,142,247,0.1), 0 0 160px rgba(255,107,53,0.05)" }}
+        className="relative w-full max-w-4xl h-[85vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl"
+        style={{
+          background: t.bg,
+          border: `1px solid ${t.border}`,
+          boxShadow: t.modalShadow,
+        }}
       >
         {/* Top border glow */}
-        <div className="absolute top-0 left-[20%] right-[20%] h-px bg-gradient-to-r from-transparent via-[#4f8ef7]/50 to-transparent" />
+        <div
+          className="absolute top-0 left-[20%] right-[20%] h-px"
+          style={{ background: `linear-gradient(to right, transparent, ${t.blue}80, transparent)` }}
+        />
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a1a2e] flex-shrink-0">
+        <div
+          className="flex items-center justify-between px-6 py-4 flex-shrink-0"
+          style={{ borderBottom: `1px solid ${t.border}` }}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, #ff6b35, #d9541e)" }}>
+            <div
+              className="w-8 h-8 rounded-xl flex items-center justify-center"
+              style={{ background: `linear-gradient(135deg, ${t.accent}, ${t.accentDark})` }}
+            >
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-sm font-bold font-mono text-[#f0f0fa]">Análisis IA completo</p>
-              <p className="text-[10px] font-mono text-[#6a6a8a]">
+              <p className="text-sm font-bold font-mono" style={{ color: t.text }}>Análisis IA completo</p>
+              <p className="text-[10px] font-mono" style={{ color: t.textDim }}>
                 {INDICATORS.find(i => i.name === context.indicator)?.label} · {context.countries.slice(0, 3).join(", ")}{context.countries.length > 3 ? ` +${context.countries.length - 3}` : ""}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl border border-[#1a1a2e] hover:border-[#252535] text-[#6a6a8a] hover:text-[#e2e2eb] transition-all"
+            className="p-2 rounded-xl transition-all"
+            style={{ border: `1px solid ${t.border}`, color: t.textDim }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = t.borderMid; e.currentTarget.style.color = t.textSub; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textDim; }}
           >
             <X className="w-4 h-4" />
           </button>
@@ -406,19 +557,24 @@ function FullChatModal({
               <div className={cn("max-w-[85%]", msg.role === "user" ? "" : "w-full")}>
                 {msg.role === "assistant" && (
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "rgba(255,107,53,0.15)" }}>
-                      <Sparkles className="w-3 h-3 text-[#ff6b35]" />
+                    <div
+                      className="w-5 h-5 rounded-lg flex items-center justify-center"
+                      style={{ background: t.accentBgMed }}
+                    >
+                      <Sparkles className="w-3 h-3" style={{ color: t.accent }} />
                     </div>
-                    <span className="text-[10px] font-mono text-[#ff6b35] font-semibold uppercase tracking-widest">LatamStat AI</span>
+                    <span className="text-[10px] font-mono font-semibold uppercase tracking-widest" style={{ color: t.accent }}>
+                      LatamStat AI
+                    </span>
                   </div>
                 )}
                 <div
-                  className={cn(
-                    "text-sm leading-relaxed rounded-2xl px-4 py-3 font-mono",
+                  className="text-sm leading-relaxed rounded-2xl px-4 py-3 font-mono"
+                  style={
                     msg.role === "user"
-                      ? "bg-[#ff6b35]/10 border border-[#ff6b35]/20 text-[#f0f0fa]"
-                      : "bg-[#0e0e18] border border-[#1a1a2e] text-[#e2e2eb] whitespace-pre-wrap"
-                  )}
+                      ? { background: t.accentBg, border: `1px solid ${t.accentBorder}`, color: t.text }
+                      : { background: t.surfaceAlt, border: `1px solid ${t.border}`, color: t.textSub, whiteSpace: "pre-wrap" }
+                  }
                 >
                   {msg.content.split(/(\*\*[^*]+\*\*)/).map((part, j) =>
                     part.startsWith("**") && part.endsWith("**")
@@ -433,12 +589,12 @@ function FullChatModal({
           {loading && (
             <div className="flex justify-start">
               <div className="flex items-center gap-2">
-                <div className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: "rgba(255,107,53,0.15)" }}>
-                  <Sparkles className="w-3 h-3 text-[#ff6b35]" />
+                <div className="w-5 h-5 rounded-lg flex items-center justify-center" style={{ background: t.accentBgMed }}>
+                  <Sparkles className="w-3 h-3" style={{ color: t.accent }} />
                 </div>
-                <div className="bg-[#0e0e18] border border-[#1a1a2e] px-4 py-3 rounded-2xl flex gap-1.5">
+                <div className="px-4 py-3 rounded-2xl flex gap-1.5" style={{ background: t.surfaceAlt, border: `1px solid ${t.border}` }}>
                   {[0, 200, 400].map((d) => (
-                    <span key={d} className="w-1.5 h-1.5 rounded-full bg-[#ff6b35] animate-bounce" style={{ animationDelay: `${d}ms` }} />
+                    <span key={d} className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: t.accent, animationDelay: `${d}ms` }} />
                   ))}
                 </div>
               </div>
@@ -447,14 +603,17 @@ function FullChatModal({
           <div ref={bottomRef} />
         </div>
 
-        {/* Suggestions (first message only) */}
+        {/* Suggestions */}
         {messages.length <= 1 && (
           <div className="px-6 pb-3 grid grid-cols-2 gap-2">
             {FULL_SUGGESTIONS.map((s) => (
               <button
                 key={s}
                 onClick={() => send(s)}
-                className="text-left text-[11px] font-mono text-[#6a6a8a] hover:text-[#e2e2eb] border border-[#1a1a2e] hover:border-[#252535] hover:bg-[#0e0e18] px-3 py-2.5 rounded-xl transition-all"
+                className="text-left text-[11px] font-mono px-3 py-2.5 rounded-xl transition-all"
+                style={{ color: t.textDim, border: `1px solid ${t.border}` }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = t.textSub; e.currentTarget.style.borderColor = t.borderMid; e.currentTarget.style.background = t.surfaceAlt; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = t.textDim; e.currentTarget.style.borderColor = t.border; e.currentTarget.style.background = "transparent"; }}
               >
                 {s}
               </button>
@@ -463,7 +622,7 @@ function FullChatModal({
         )}
 
         {/* Input */}
-        <div className="px-6 pb-6 pt-3 border-t border-[#1a1a2e] flex-shrink-0">
+        <div className="px-6 pb-6 pt-3 flex-shrink-0" style={{ borderTop: `1px solid ${t.border}` }}>
           <div className="flex gap-3 items-end">
             <textarea
               value={input}
@@ -471,13 +630,19 @@ function FullChatModal({
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
               placeholder="Pedí un análisis profundo, comparación de países, recomendaciones de política..."
               rows={3}
-              className="flex-1 bg-[#0e0e18] border border-[#1a1a2e] focus:border-[#ff6b35]/50 rounded-2xl px-4 py-3 text-sm font-mono text-[#e2e2eb] placeholder:text-[#3a3a4e] resize-none focus:outline-none transition-colors"
+              className="flex-1 rounded-2xl px-4 py-3 text-sm font-mono resize-none focus:outline-none transition-colors"
+              style={{ background: t.surfaceAlt, border: `1px solid ${t.border}`, color: t.textSub }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = `${t.accent}80`; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = t.border; }}
             />
             <button
               onClick={() => send(input)}
               disabled={loading || !input.trim()}
               className="p-3.5 rounded-xl disabled:opacity-30 transition-all hover:scale-105"
-              style={{ background: "linear-gradient(135deg, #ff6b35, #d9541e)", boxShadow: "0 4px 20px rgba(255,107,53,0.25)" }}
+              style={{
+                background: `linear-gradient(135deg, ${t.accent}, ${t.accentDark})`,
+                boxShadow: `0 4px 20px ${t.accentBg}`,
+              }}
             >
               <Send className="w-4 h-4 text-white" />
             </button>
@@ -505,41 +670,60 @@ function Sidebar({
   availableCountries: string[];
   countriesLoading: boolean;
 }) {
+  const t = useTheme();
+
   const toggleCountry = (c: string) => {
     setCountries(countries.includes(c) ? countries.filter((x) => x !== c) : [...countries, c]);
   };
 
   return (
-    <aside className="w-[220px] flex-shrink-0 h-full bg-[#0b0b14] border-r border-[#1a1a2e] flex flex-col overflow-y-auto">
+    <aside
+      className="w-[220px] flex-shrink-0 h-full flex flex-col overflow-y-auto"
+      style={{ background: t.surface, borderRight: `1px solid ${t.border}` }}
+    >
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-[#1a1a2e]">
+      <div className="px-5 py-5" style={{ borderBottom: `1px solid ${t.border}` }}>
         <Link href="/landing" className="flex items-center gap-2 group">
-          <div
-            className="w-7 h-7 rounded-lg overflow-hidden flex-shrink-0"
-          >
+          <div className="w-7 h-7 rounded-lg overflow-hidden flex-shrink-0">
             <img src="/logo.png" alt="LatamStat" className="w-full h-full object-cover" />
           </div>
-          <span className="font-mono text-sm font-bold text-[#f0f0fa]">
-            Latam<span className="text-[#ff6b35]">Stat</span>
+          <span className="font-mono text-sm font-bold" style={{ color: t.text }}>
+            Latam<span style={{ color: t.accent }}>Stat</span>
           </span>
         </Link>
-        <p className="text-[9px] font-mono text-[#3a3a4e] mt-1.5 uppercase tracking-widest">ULACIT × Databricks</p>
+        <p className="text-[9px] font-mono mt-1.5 uppercase tracking-widest" style={{ color: t.textTiny }}>
+          ULACIT × Databricks
+        </p>
       </div>
 
       {/* Indicator selector */}
-      <div className="px-4 py-4 border-b border-[#1a1a2e]">
-        <p className="text-[9px] font-mono text-[#464554] uppercase tracking-widest mb-3">Indicador</p>
+      <div className="px-4 py-4" style={{ borderBottom: `1px solid ${t.border}` }}>
+        <p className="text-[9px] font-mono uppercase tracking-widest mb-3" style={{ color: t.textFaint }}>
+          Indicador
+        </p>
         <div className="space-y-1">
           {INDICATORS.map((ind) => (
             <button
               key={ind.name}
               onClick={() => setIndicator(ind.name)}
-              className={cn(
-                "w-full text-left px-3 py-2 rounded-lg text-[11px] font-mono transition-all",
+              className="w-full text-left px-3 py-2 rounded-lg text-[11px] font-mono transition-all"
+              style={
                 indicator === ind.name
-                  ? "bg-[#ff6b35]/10 border border-[#ff6b35]/30 text-[#ff6b35] font-semibold"
-                  : "text-[#6a6a8a] hover:text-[#e2e2eb] hover:bg-[#0e0e18]"
-              )}
+                  ? { background: t.accentBg, border: `1px solid ${t.accentBorderMid}`, color: t.accent, fontWeight: 600 }
+                  : { color: t.textDim, border: "1px solid transparent" }
+              }
+              onMouseEnter={(e) => {
+                if (indicator !== ind.name) {
+                  e.currentTarget.style.color = t.textSub;
+                  e.currentTarget.style.background = t.surfaceAlt;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (indicator !== ind.name) {
+                  e.currentTarget.style.color = t.textDim;
+                  e.currentTarget.style.background = "transparent";
+                }
+              }}
             >
               {ind.label}
             </button>
@@ -548,21 +732,29 @@ function Sidebar({
       </div>
 
       {/* Year range */}
-      <div className="px-4 py-4 border-b border-[#1a1a2e]">
-        <p className="text-[9px] font-mono text-[#464554] uppercase tracking-widest mb-3">Período</p>
+      <div className="px-4 py-4" style={{ borderBottom: `1px solid ${t.border}` }}>
+        <p className="text-[9px] font-mono uppercase tracking-widest mb-3" style={{ color: t.textFaint }}>
+          Período
+        </p>
         <div className="flex items-center gap-2">
           <input
             type="number"
             value={yearFrom}
             onChange={(e) => setYearFrom(Number(e.target.value))}
-            className="w-full bg-[#0e0e18] border border-[#1a1a2e] rounded-lg px-2 py-1.5 text-[11px] font-mono text-[#e2e2eb] focus:outline-none focus:border-[#ff6b35]/40"
+            className="w-full rounded-lg px-2 py-1.5 text-[11px] font-mono focus:outline-none transition-colors"
+            style={{ background: t.surfaceAlt, border: `1px solid ${t.border}`, color: t.textSub }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = `${t.accent}60`; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = t.border; }}
           />
-          <span className="text-[#464554] text-xs font-mono">—</span>
+          <span className="text-xs font-mono" style={{ color: t.textFaint }}>—</span>
           <input
             type="number"
             value={yearTo}
             onChange={(e) => setYearTo(Number(e.target.value))}
-            className="w-full bg-[#0e0e18] border border-[#1a1a2e] rounded-lg px-2 py-1.5 text-[11px] font-mono text-[#e2e2eb] focus:outline-none focus:border-[#ff6b35]/40"
+            className="w-full rounded-lg px-2 py-1.5 text-[11px] font-mono focus:outline-none transition-colors"
+            style={{ background: t.surfaceAlt, border: `1px solid ${t.border}`, color: t.textSub }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = `${t.accent}60`; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = t.border; }}
           />
         </div>
       </div>
@@ -570,21 +762,24 @@ function Sidebar({
       {/* Country selector */}
       <div className="px-4 py-4 flex-1">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-[9px] font-mono text-[#464554] uppercase tracking-widest">Países</p>
+          <p className="text-[9px] font-mono uppercase tracking-widest" style={{ color: t.textFaint }}>Países</p>
           <button
             onClick={() => setCountries(
               countries.length === availableCountries.length
                 ? availableCountries.slice(0, 5)
                 : availableCountries
             )}
-            className="text-[9px] font-mono text-[#4f8ef7] hover:text-[#7aabff] transition-colors"
+            className="text-[9px] font-mono transition-colors"
+            style={{ color: t.blue }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = t.blueHover; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = t.blue; }}
           >
             {countries.length === availableCountries.length ? "Reset" : "Todos"}
           </button>
         </div>
         {countriesLoading ? (
           <div className="py-4 text-center">
-            <div className="text-[9px] font-mono text-[#464554]">Cargando países...</div>
+            <div className="text-[9px] font-mono" style={{ color: t.textFaint }}>Cargando países...</div>
           </div>
         ) : (
           <div className="space-y-0.5">
@@ -592,16 +787,16 @@ function Sidebar({
               <button
                 key={c}
                 onClick={() => toggleCountry(c)}
-                className={cn(
-                  "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10px] font-mono transition-all",
-                  countries.includes(c) ? "text-[#e2e2eb]" : "text-[#464554] hover:text-[#6a6a8a]"
-                )}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10px] font-mono transition-all"
+                style={{ color: countries.includes(c) ? t.textSub : t.textFaint }}
+                onMouseEnter={(e) => { if (!countries.includes(c)) e.currentTarget.style.color = t.textDim; }}
+                onMouseLeave={(e) => { if (!countries.includes(c)) e.currentTarget.style.color = t.textFaint; }}
               >
                 <span
                   className="w-2.5 h-2.5 rounded-sm border flex-shrink-0 transition-colors"
                   style={{
-                    borderColor: countries.includes(c) ? "#ff6b35" : "#2a2a3e",
-                    background: countries.includes(c) ? "#ff6b35" : "transparent",
+                    borderColor: countries.includes(c) ? t.accent : t.textInvisible,
+                    background: countries.includes(c) ? t.accent : "transparent",
                   }}
                 />
                 {c}
@@ -614,9 +809,39 @@ function Sidebar({
   );
 }
 
+// ─── Theme Toggle Button ───────────────────────────────────────────────────────
+
+function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
+  const t = theme;
+  return (
+    <button
+      onClick={onToggle}
+      className="flex items-center gap-1.5 text-[11px] font-mono px-3 py-1.5 rounded-lg transition-all"
+      style={{
+        color: t.textDim,
+        border: `1px solid ${t.border}`,
+        background: t.surfaceAlt,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.color = t.textSub;
+        e.currentTarget.style.borderColor = t.borderMid;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.color = t.textDim;
+        e.currentTarget.style.borderColor = t.border;
+      }}
+      title={t.id === "dark" ? "Cambiar a modo accesible (daltónico)" : "Cambiar a modo oscuro"}
+    >
+      {t.id === "dark" ? <Sun className="w-3 h-3" /> : <Moon className="w-3 h-3" />}
+      {t.id === "dark" ? "Accesible" : "Oscuro"}
+    </button>
+  );
+}
+
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function Dashboard() {
+  const [theme, setTheme] = useState<Theme>(DARK_THEME);
   const [indicator, setIndicator] = useState("Annual CPI growth rate");
   const [countries, setCountries] = useState(["Brazil", "Mexico", "Chile", "Colombia"]);
   const [availableCountries, setAvailableCountries] = useState<string[]>(ALL_COUNTRIES);
@@ -631,9 +856,11 @@ export default function Dashboard() {
 
   const [fullChatOpen, setFullChatOpen] = useState(false);
 
+  const t = theme;
   const indicatorLabel = INDICATORS.find(i => i.name === indicator)?.label ?? indicator;
 
-  // Fetch KPIs when indicator changes
+  const toggleTheme = () => setTheme(prev => prev.id === "dark" ? ACCESSIBLE_THEME : DARK_THEME);
+
   useEffect(() => {
     setKpiLoading(true);
     fetch(`/api/data/kpis?indicator=${encodeURIComponent(indicator)}`)
@@ -642,7 +869,6 @@ export default function Dashboard() {
       .catch(() => setKpiLoading(false));
   }, [indicator]);
 
-  // Fetch available countries when indicator changes
   useEffect(() => {
     setCountriesLoading(true);
     fetch(`/api/data/countries?indicator=${encodeURIComponent(indicator)}`)
@@ -650,20 +876,15 @@ export default function Dashboard() {
       .then((d: { countries: string[] }) => {
         const available = d.countries ?? ALL_COUNTRIES;
         setAvailableCountries(available);
-        // Keep selected countries that exist in new indicator, fallback to first 5
         setCountries((prev) => {
           const valid = prev.filter((c) => available.includes(c));
           return valid.length > 0 ? valid : available.slice(0, 5);
         });
         setCountriesLoading(false);
       })
-      .catch(() => {
-        setAvailableCountries(ALL_COUNTRIES);
-        setCountriesLoading(false);
-      });
+      .catch(() => { setAvailableCountries(ALL_COUNTRIES); setCountriesLoading(false); });
   }, [indicator]);
 
-  // Fetch timeseries when filters change (debounced)
   useEffect(() => {
     if (!countries.length) return;
     const timer = setTimeout(() => {
@@ -683,298 +904,316 @@ export default function Dashboard() {
   }, [indicator, countries, yearFrom, yearTo]);
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "#09090f", fontFamily: "'Sora', sans-serif" }}>
-      <Sidebar
-        indicator={indicator} setIndicator={setIndicator}
-        countries={countries} setCountries={setCountries}
-        yearFrom={yearFrom} setYearFrom={setYearFrom}
-        yearTo={yearTo} setYearTo={setYearTo}
-        availableCountries={availableCountries}
-        countriesLoading={countriesLoading}
-      />
+    <ThemeContext.Provider value={theme}>
+      <div className="flex h-screen overflow-hidden" style={{ background: t.bg, fontFamily: "'Sora', sans-serif" }}>
+        <Sidebar
+          indicator={indicator} setIndicator={setIndicator}
+          countries={countries} setCountries={setCountries}
+          yearFrom={yearFrom} setYearFrom={setYearFrom}
+          yearTo={yearTo} setYearTo={setYearTo}
+          availableCountries={availableCountries}
+          countriesLoading={countriesLoading}
+        />
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Top bar */}
-        <header className="h-14 flex-shrink-0 flex items-center justify-between px-6 border-b border-[#1a1a2e]">
-          <div>
-            <h1 className="text-sm font-bold text-[#f0f0fa] tracking-tight">{indicatorLabel}</h1>
-            <p className="text-[10px] font-mono text-[#6a6a8a]">
-              {countries.length} países · {yearFrom}–{yearTo} · Datos CEPALSTAT
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => { setIndicator("Annual CPI growth rate"); setCountries(["Argentina", "Brazil", "Mexico", "Chile", "Colombia"]); setYearFrom(2000); setYearTo(2024); }}
-              className="flex items-center gap-1.5 text-[11px] font-mono text-[#6a6a8a] hover:text-[#e2e2eb] border border-[#1a1a2e] hover:border-[#252535] px-3 py-1.5 rounded-lg transition-all"
-            >
-              <RotateCcw className="w-3 h-3" />
-              Reset
-            </button>
-            <button
-              onClick={() => setFullChatOpen(true)}
-              className="flex items-center gap-2 text-xs font-mono font-semibold px-4 py-1.5 rounded-xl transition-all hover:scale-[1.02]"
-              style={{ background: "linear-gradient(135deg, #ff6b35, #d9541e)", color: "white", boxShadow: "0 2px 16px rgba(255,107,53,0.25)" }}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              Análisis completo
-            </button>
-          </div>
-        </header>
+        {/* Main content */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Top bar */}
+          <header
+            className="h-14 flex-shrink-0 flex items-center justify-between px-6"
+            style={{ borderBottom: `1px solid ${t.border}` }}
+          >
+            <div>
+              <h1 className="text-sm font-bold tracking-tight" style={{ color: t.text }}>{indicatorLabel}</h1>
+              <p className="text-[10px] font-mono" style={{ color: t.textDim }}>
+                {countries.length} países · {yearFrom}–{yearTo} · Datos CEPALSTAT
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <ThemeToggle theme={theme} onToggle={toggleTheme} />
+              <button
+                onClick={() => { setIndicator("Annual CPI growth rate"); setCountries(["Argentina", "Brazil", "Mexico", "Chile", "Colombia"]); setYearFrom(2000); setYearTo(2024); }}
+                className="flex items-center gap-1.5 text-[11px] font-mono px-3 py-1.5 rounded-lg transition-all"
+                style={{ color: t.textDim, border: `1px solid ${t.border}` }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = t.textSub; e.currentTarget.style.borderColor = t.borderMid; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = t.textDim; e.currentTarget.style.borderColor = t.border; }}
+              >
+                <RotateCcw className="w-3 h-3" />
+                Reset
+              </button>
+              <button
+                onClick={() => setFullChatOpen(true)}
+                className="flex items-center gap-2 text-xs font-mono font-semibold px-4 py-1.5 rounded-xl transition-all hover:scale-[1.02]"
+                style={{
+                  background: `linear-gradient(135deg, ${t.accent}, ${t.accentDark})`,
+                  color: "white",
+                  boxShadow: `0 2px 16px ${t.accentBg}`,
+                }}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Análisis completo
+              </button>
+            </div>
+          </header>
 
-        {/* Scrollable content */}
-        <main className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Scrollable content */}
+          <main className="flex-1 overflow-y-auto p-5 space-y-4">
 
-          {/* KPI Cards */}
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-            <KPICard
-              label="Mediana regional"
-              value={kpiData?.median?.value ?? "—"}
-              subLabel={`Año ${kpiData?.year ?? "…"}`}
-              subValue={`${kpiData?.count ?? "—"} países`}
-              accent="#ff6b35"
-              trend={kpiData?.yoy}
-              loading={kpiLoading}
-            />
-            <KPICard
-              label="Año de referencia"
-              value={kpiData?.year != null ? String(kpiData.year) : "—"}
-              subLabel="Último dato disponible"
-              subValue={indicatorLabel}
-              accent="#4f8ef7"
-              loading={kpiLoading}
-            />
-            <KPICard
-              label="Valor más alto"
-              value={kpiData?.top?.value ?? "—"}
-              subLabel="País"
-              subValue={kpiData?.top?.country ?? "—"}
-              accent="#f87171"
-              loading={kpiLoading}
-            />
-            <KPICard
-              label="Valor más bajo"
-              value={kpiData?.bottom?.value ?? "—"}
-              subLabel="País"
-              subValue={kpiData?.bottom?.country ?? "—"}
-              accent="#34d399"
-              loading={kpiLoading}
-            />
-          </div>
-
-          {/* Time Series Chart */}
-          <div className="rounded-2xl border border-[#1a1a2e] bg-[#0b0b14] p-5">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <p className="text-sm font-bold text-[#f0f0fa]">Evolución histórica</p>
-                <p className="text-[10px] font-mono text-[#6a6a8a] mt-0.5">{indicatorLabel} · {yearFrom}–{yearTo}</p>
-              </div>
-              <BarChart2 className="w-4 h-4 text-[#464554]" />
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+              <KPICard
+                label="Mediana regional"
+                value={kpiData?.median?.value ?? "—"}
+                subLabel={`Año ${kpiData?.year ?? "…"}`}
+                subValue={`${kpiData?.count ?? "—"} países`}
+                accent={t.kpiAccents[0]}
+                trend={kpiData?.yoy}
+                loading={kpiLoading}
+              />
+              <KPICard
+                label="Año de referencia"
+                value={kpiData?.year != null ? String(kpiData.year) : "—"}
+                subLabel="Último dato disponible"
+                subValue={indicatorLabel}
+                accent={t.kpiAccents[1]}
+                loading={kpiLoading}
+              />
+              <KPICard
+                label="Valor más alto"
+                value={kpiData?.top?.value ?? "—"}
+                subLabel="País"
+                subValue={kpiData?.top?.country ?? "—"}
+                accent={t.kpiAccents[2]}
+                loading={kpiLoading}
+              />
+              <KPICard
+                label="Valor más bajo"
+                value={kpiData?.bottom?.value ?? "—"}
+                subLabel="País"
+                subValue={kpiData?.bottom?.country ?? "—"}
+                accent={t.kpiAccents[3]}
+                loading={kpiLoading}
+              />
             </div>
 
-            {tsLoading ? (
-              <div className="h-[280px] flex items-center justify-center">
-                <div className="space-y-2 w-full px-4">
-                  {[...Array(4)].map((_, i) => (
-                    <div key={i} className="h-2 bg-[#1a1a2e] rounded animate-pulse" style={{ width: `${60 + i * 10}%` }} />
-                  ))}
+            {/* Time Series Chart */}
+            <div className="rounded-2xl p-5" style={{ border: `1px solid ${t.border}`, background: t.surface }}>
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <p className="text-sm font-bold" style={{ color: t.text }}>Evolución histórica</p>
+                  <p className="text-[10px] font-mono mt-0.5" style={{ color: t.textDim }}>{indicatorLabel} · {yearFrom}–{yearTo}</p>
                 </div>
+                <BarChart2 className="w-4 h-4" style={{ color: t.textFaint }} />
               </div>
-            ) : tsData?.data?.length ? (() => {
-              const allValues: number[] = [];
-              for (const row of tsData.data) {
-                for (const country of tsData.countries) {
-                  const v = row[country];
-                  if (typeof v === "number" && !isNaN(v)) allValues.push(v);
-                }
-              }
-              const minVal = Math.min(...allValues);
-              const maxVal = Math.max(...allValues);
-              const padding = (maxVal - minVal) * 0.15 || maxVal * 0.05;
-              const yDomain: [number, number] = [
-                parseFloat((Math.max(0, minVal - padding)).toFixed(3)),
-                parseFloat((maxVal + padding).toFixed(3)),
-              ];
-              return (
-                <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={tsData.data} margin={{ top: 4, right: 20, left: -10, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1a2e" />
-                    <XAxis
-                      dataKey="year"
-                      tick={{ fill: "#6a6a8a", fontSize: 10, fontFamily: "JetBrains Mono" }}
-                      tickLine={false}
-                      axisLine={{ stroke: "#1a1a2e" }}
-                    />
-                    <YAxis
-                      domain={yDomain}
-                      tick={{ fill: "#6a6a8a", fontSize: 10, fontFamily: "JetBrains Mono" }}
-                      tickLine={false}
-                      axisLine={{ stroke: "#1a1a2e" }}
-                    />
-                    <Tooltip content={<DarkTooltip />} />
-                    <Legend
-                      wrapperStyle={{ fontSize: 10, fontFamily: "JetBrains Mono", color: "#8585a8", paddingTop: 8 }}
-                    />
-                    {tsData.countries.map((country, i) => (
-                      <Line
-                        key={country}
-                        type="monotone"
-                        dataKey={country}
-                        stroke={CHART_COLORS[i % CHART_COLORS.length]}
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 4 }}
-                        connectNulls
+
+              {tsLoading ? (
+                <div className="h-[280px] flex items-center justify-center">
+                  <div className="space-y-2 w-full px-4">
+                    {[...Array(4)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="h-2 rounded animate-pulse"
+                        style={{ background: t.border, width: `${60 + i * 10}%` }}
                       />
                     ))}
-                  </LineChart>
-                </ResponsiveContainer>
+                  </div>
+                </div>
+              ) : tsData?.data?.length ? (() => {
+                const allValues: number[] = [];
+                for (const row of tsData.data) {
+                  for (const country of tsData.countries) {
+                    const v = row[country];
+                    if (typeof v === "number" && !isNaN(v)) allValues.push(v);
+                  }
+                }
+                const minVal = Math.min(...allValues);
+                const maxVal = Math.max(...allValues);
+                const padding = (maxVal - minVal) * 0.15 || maxVal * 0.05;
+                const yDomain: [number, number] = [
+                  parseFloat((Math.max(0, minVal - padding)).toFixed(3)),
+                  parseFloat((maxVal + padding).toFixed(3)),
+                ];
+                return (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <LineChart data={tsData.data} margin={{ top: 4, right: 20, left: -10, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={t.border} />
+                      <XAxis
+                        dataKey="year"
+                        tick={{ fill: t.textDim, fontSize: 10, fontFamily: "JetBrains Mono" }}
+                        tickLine={false}
+                        axisLine={{ stroke: t.border }}
+                      />
+                      <YAxis
+                        domain={yDomain}
+                        tick={{ fill: t.textDim, fontSize: 10, fontFamily: "JetBrains Mono" }}
+                        tickLine={false}
+                        axisLine={{ stroke: t.border }}
+                      />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Legend
+                        wrapperStyle={{ fontSize: 10, fontFamily: "JetBrains Mono", color: t.textMuted, paddingTop: 8 }}
+                      />
+                      {tsData.countries.map((country, i) => (
+                        <Line
+                          key={country}
+                          type="monotone"
+                          dataKey={country}
+                          stroke={t.chartColors[i % t.chartColors.length]}
+                          strokeWidth={2}
+                          dot={false}
+                          activeDot={{ r: 4 }}
+                          connectNulls
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                );
+              })() : (
+                <div className="h-[280px] flex items-center justify-center">
+                  <div className="text-center">
+                    <BarChart2 className="w-8 h-8 mx-auto mb-2" style={{ color: t.border }} />
+                    <p className="text-xs font-mono" style={{ color: t.textFaint }}>Sin datos para estos filtros</p>
+                    <p className="text-[10px] font-mono mt-1" style={{ color: t.textInvisible }}>Ajustá el período o los países</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Summary tables */}
+            {tsData?.data && tsData.data.length > 0 && (() => {
+              const tableData = tsData.countries.map((country, i) => {
+                const points = tsData.data
+                  .filter(row => typeof row[country] === "number" && !isNaN(row[country] as number))
+                  .map(row => ({ year: Number(row.year), value: row[country] as number }));
+                if (points.length === 0) return null;
+                const avg = points.reduce((s, p) => s + p.value, 0) / points.length;
+                const minP = points.reduce((a, b) => b.value < a.value ? b : a);
+                const maxP = points.reduce((a, b) => b.value > a.value ? b : a);
+                return { country, color: t.chartColors[i % t.chartColors.length], avg, minP, maxP };
+              }).filter((d): d is NonNullable<typeof d> => d !== null);
+
+              if (tableData.length === 0) return null;
+
+              const fmt = (n: number) => n % 1 === 0 ? String(n) : n.toFixed(2);
+
+              return (
+                <div className="flex gap-3 flex-col md:flex-row">
+                  {/* Tabla 1: Promedio */}
+                  <div className="rounded-2xl p-5 flex-1 min-w-0" style={{ border: `1px solid ${t.border}`, background: t.surface }}>
+                    <p className="text-sm font-bold mb-1" style={{ color: t.text }}>Promedio del período</p>
+                    <p className="text-[10px] font-mono mb-4" style={{ color: t.textDim }}>{indicatorLabel} · {yearFrom}–{yearTo}</p>
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr>
+                          <th className="text-left text-[9px] font-mono uppercase tracking-widest pb-2" style={{ color: t.textFaint, borderBottom: `1px solid ${t.border}` }}>País</th>
+                          <th className="text-right text-[9px] font-mono uppercase tracking-widest pb-2" style={{ color: t.textFaint, borderBottom: `1px solid ${t.border}` }}>Promedio</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...tableData].sort((a, b) => b.avg - a.avg).map(d => (
+                          <tr key={d.country}>
+                            <td className="py-2 text-[11px] font-mono" style={{ borderBottom: `1px solid ${t.borderFaint}` }}>
+                              <span className="inline-block w-2 h-2 rounded-full mr-2 flex-shrink-0" style={{ background: d.color }} />
+                              <span style={{ color: t.textMuted }}>{d.country}</span>
+                            </td>
+                            <td className="py-2 text-[11px] font-mono text-right font-bold" style={{ color: d.color, borderBottom: `1px solid ${t.borderFaint}` }}>{fmt(d.avg)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Tabla 2: Año mínimo */}
+                  <div className="rounded-2xl p-5 flex-1 min-w-0" style={{ border: `1px solid ${t.border}`, background: t.surface }}>
+                    <p className="text-sm font-bold mb-1" style={{ color: t.text }}>Año más bajo</p>
+                    <p className="text-[10px] font-mono mb-4" style={{ color: t.textDim }}>{indicatorLabel} · valor mínimo registrado</p>
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr>
+                          <th className="text-left text-[9px] font-mono uppercase tracking-widest pb-2" style={{ color: t.textFaint, borderBottom: `1px solid ${t.border}` }}>País</th>
+                          <th className="text-right text-[9px] font-mono uppercase tracking-widest pb-2" style={{ color: t.textFaint, borderBottom: `1px solid ${t.border}` }}>Año</th>
+                          <th className="text-right text-[9px] font-mono uppercase tracking-widest pb-2" style={{ color: t.textFaint, borderBottom: `1px solid ${t.border}` }}>Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...tableData].sort((a, b) => a.minP.value - b.minP.value).map(d => (
+                          <tr key={d.country}>
+                            <td className="py-2 text-[11px] font-mono" style={{ borderBottom: `1px solid ${t.borderFaint}` }}>
+                              <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ background: d.color }} />
+                              <span style={{ color: t.textMuted }}>{d.country}</span>
+                            </td>
+                            <td className="py-2 text-[11px] font-mono text-right" style={{ color: t.green, borderBottom: `1px solid ${t.borderFaint}` }}>{d.minP.year}</td>
+                            <td className="py-2 text-[11px] font-mono text-right font-bold" style={{ color: t.green, borderBottom: `1px solid ${t.borderFaint}` }}>{fmt(d.minP.value)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Tabla 3: Año máximo */}
+                  <div className="rounded-2xl p-5 flex-1 min-w-0" style={{ border: `1px solid ${t.border}`, background: t.surface }}>
+                    <p className="text-sm font-bold mb-1" style={{ color: t.text }}>Año más alto</p>
+                    <p className="text-[10px] font-mono mb-4" style={{ color: t.textDim }}>{indicatorLabel} · valor máximo registrado</p>
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr>
+                          <th className="text-left text-[9px] font-mono uppercase tracking-widest pb-2" style={{ color: t.textFaint, borderBottom: `1px solid ${t.border}` }}>País</th>
+                          <th className="text-right text-[9px] font-mono uppercase tracking-widest pb-2" style={{ color: t.textFaint, borderBottom: `1px solid ${t.border}` }}>Año</th>
+                          <th className="text-right text-[9px] font-mono uppercase tracking-widest pb-2" style={{ color: t.textFaint, borderBottom: `1px solid ${t.border}` }}>Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...tableData].sort((a, b) => b.maxP.value - a.maxP.value).map(d => (
+                          <tr key={d.country}>
+                            <td className="py-2 text-[11px] font-mono" style={{ borderBottom: `1px solid ${t.borderFaint}` }}>
+                              <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ background: d.color }} />
+                              <span style={{ color: t.textMuted }}>{d.country}</span>
+                            </td>
+                            <td className="py-2 text-[11px] font-mono text-right" style={{ color: t.red, borderBottom: `1px solid ${t.borderFaint}` }}>{d.maxP.year}</td>
+                            <td className="py-2 text-[11px] font-mono text-right font-bold" style={{ color: t.red, borderBottom: `1px solid ${t.borderFaint}` }}>{fmt(d.maxP.value)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               );
-            })() : (
-              <div className="h-[280px] flex items-center justify-center">
-                <div className="text-center">
-                  <BarChart2 className="w-8 h-8 text-[#1a1a2e] mx-auto mb-2" />
-                  <p className="text-xs font-mono text-[#464554]">Sin datos para estos filtros</p>
-                  <p className="text-[10px] font-mono text-[#2a2a3e] mt-1">Ajustá el período o los países</p>
-                </div>
-              </div>
-            )}
-          </div>
+            })()}
 
-          {/* Summary tables */}
-          {tsData?.data && tsData.data.length > 0 && (() => {
-            const tableData = tsData.countries.map((country, i) => {
-              const points = tsData.data
-                .filter(row => typeof row[country] === "number" && !isNaN(row[country] as number))
-                .map(row => ({ year: Number(row.year), value: row[country] as number }));
-              if (points.length === 0) return null;
-              const avg = points.reduce((s, p) => s + p.value, 0) / points.length;
-              const minP = points.reduce((a, b) => b.value < a.value ? b : a);
-              const maxP = points.reduce((a, b) => b.value > a.value ? b : a);
-              return { country, color: CHART_COLORS[i % CHART_COLORS.length], avg, minP, maxP };
-            }).filter((d): d is NonNullable<typeof d> => d !== null);
+            {/* Footer */}
+            <div className="flex items-center justify-between pt-2 pb-4">
+              <p className="text-[10px] font-mono" style={{ color: t.textInvisible }}>
+                Fuente: CEPALSTAT · {kpiData?.count ?? "—"} países disponibles · Hackathon ULACIT × Databricks
+              </p>
+              <Link href="/landing">
+                <span
+                  className="text-[10px] font-mono transition-colors flex items-center gap-1"
+                  style={{ color: t.textFaint }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = t.textMuted; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = t.textFaint; }}
+                >
+                  ← Inicio
+                </span>
+              </Link>
+            </div>
+          </main>
+        </div>
 
-            if (tableData.length === 0) return null;
+        {/* Quick AI Panel */}
+        <QuickAIPanel
+          onOpenFull={() => setFullChatOpen(true)}
+          indicator={indicator}
+        />
 
-            const fmt = (n: number) => n % 1 === 0 ? String(n) : n.toFixed(2);
-
-            const tableClass = "rounded-2xl border border-[#1a1a2e] bg-[#0b0b14] p-5 flex-1 min-w-0";
-            const thClass = "text-left text-[9px] font-mono text-[#464554] uppercase tracking-widest pb-2 border-b border-[#1a1a2e]";
-            const tdClass = "py-2 text-[11px] font-mono border-b border-[#111120]";
-
-            return (
-              <div className="flex gap-3 flex-col md:flex-row">
-                {/* Tabla 1: Promedio */}
-                <div className={tableClass}>
-                  <p className="text-sm font-bold text-[#f0f0fa] mb-1">Promedio del período</p>
-                  <p className="text-[10px] font-mono text-[#6a6a8a] mb-4">{indicatorLabel} · {yearFrom}–{yearTo}</p>
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr>
-                        <th className={thClass}>País</th>
-                        <th className={`${thClass} text-right`}>Promedio</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...tableData].sort((a, b) => b.avg - a.avg).map(d => (
-                        <tr key={d.country}>
-                          <td className={tdClass}>
-                            <span className="inline-block w-2 h-2 rounded-full mr-2 flex-shrink-0" style={{ background: d.color }} />
-                            <span className="text-[#c0c0d0]">{d.country}</span>
-                          </td>
-                          <td className={`${tdClass} text-right font-bold`} style={{ color: d.color }}>{fmt(d.avg)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Tabla 2: Año mínimo */}
-                <div className={tableClass}>
-                  <p className="text-sm font-bold text-[#f0f0fa] mb-1">Año más bajo</p>
-                  <p className="text-[10px] font-mono text-[#6a6a8a] mb-4">{indicatorLabel} · valor mínimo registrado</p>
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr>
-                        <th className={thClass}>País</th>
-                        <th className={`${thClass} text-right`}>Año</th>
-                        <th className={`${thClass} text-right`}>Valor</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...tableData].sort((a, b) => a.minP.value - b.minP.value).map(d => (
-                        <tr key={d.country}>
-                          <td className={tdClass}>
-                            <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ background: d.color }} />
-                            <span className="text-[#c0c0d0]">{d.country}</span>
-                          </td>
-                          <td className={`${tdClass} text-right text-[#34d399]`}>{d.minP.year}</td>
-                          <td className={`${tdClass} text-right font-bold text-[#34d399]`}>{fmt(d.minP.value)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Tabla 3: Año máximo */}
-                <div className={tableClass}>
-                  <p className="text-sm font-bold text-[#f0f0fa] mb-1">Año más alto</p>
-                  <p className="text-[10px] font-mono text-[#6a6a8a] mb-4">{indicatorLabel} · valor máximo registrado</p>
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr>
-                        <th className={thClass}>País</th>
-                        <th className={`${thClass} text-right`}>Año</th>
-                        <th className={`${thClass} text-right`}>Valor</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...tableData].sort((a, b) => b.maxP.value - a.maxP.value).map(d => (
-                        <tr key={d.country}>
-                          <td className={tdClass}>
-                            <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ background: d.color }} />
-                            <span className="text-[#c0c0d0]">{d.country}</span>
-                          </td>
-                          <td className={`${tdClass} text-right text-[#f87171]`}>{d.maxP.year}</td>
-                          <td className={`${tdClass} text-right font-bold text-[#f87171]`}>{fmt(d.maxP.value)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Footer */}
-          <div className="flex items-center justify-between pt-2 pb-4">
-            <p className="text-[10px] font-mono text-[#2a2a3e]">
-              Fuente: CEPALSTAT · {kpiData?.count ?? "—"} países disponibles · Hackathon ULACIT × Databricks
-            </p>
-            <Link href="/landing">
-              <span className="text-[10px] font-mono text-[#464554] hover:text-[#8585a8] transition-colors flex items-center gap-1">
-                ← Inicio
-              </span>
-            </Link>
-          </div>
-        </main>
+        {/* Full Chat Modal */}
+        <AnimatePresence>
+          {fullChatOpen && (
+            <FullChatModal
+              onClose={() => setFullChatOpen(false)}
+              context={{ indicator, countries, yearFrom, yearTo }}
+            />
+          )}
+        </AnimatePresence>
       </div>
-
-      {/* Quick AI Panel */}
-      <QuickAIPanel
-        onOpenFull={() => setFullChatOpen(true)}
-        indicator={indicator}
-      />
-
-      {/* Full Chat Modal */}
-      <AnimatePresence>
-        {fullChatOpen && (
-          <FullChatModal
-            onClose={() => setFullChatOpen(false)}
-            context={{ indicator, countries, yearFrom, yearTo }}
-          />
-        )}
-      </AnimatePresence>
-    </div>
+    </ThemeContext.Provider>
   );
 }
