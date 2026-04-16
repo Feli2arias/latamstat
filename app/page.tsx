@@ -20,7 +20,7 @@ function useScrollTop() {
 
 // ─── Globe canvas ─────────────────────────────────────────────────────────────
 
-const LATAM_PHI = 1.1; // ~65°W longitude — centers South America
+const LATAM_PHI = 5.0; // ~60°W longitude — centers South America
 
 function Globe({ className, config, inView }: { className?: string; config?: Partial<COBEOptions>; inView?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
