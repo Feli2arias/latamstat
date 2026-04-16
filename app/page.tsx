@@ -20,17 +20,23 @@ function useScrollTop() {
 
 // ─── Globe canvas ─────────────────────────────────────────────────────────────
 
-function Globe({ className, config }: { className?: string; config?: Partial<COBEOptions> }) {
+const LATAM_PHI = 5.0; // ~60°W longitude — centers South America
+
+function Globe({ className, config, inView }: { className?: string; config?: Partial<COBEOptions>; inView?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const interacting = useRef<number | null>(null);
   const movement = useRef(0);
-  const phi = useRef(1.05);
+  const phi = useRef(LATAM_PHI);
   const rDelta = useRef(0);
+
+  useEffect(() => {
+    if (inView) phi.current = LATAM_PHI;
+  }, [inView]);
 
   const defaultConfig: COBEOptions = {
     width: 800,
     height: 800,
-    phi: 1.05,
+    phi: LATAM_PHI,
     theta: 0.3,
     dark: 1,
     diffuse: 1.2,
@@ -404,7 +410,7 @@ function GlobeSection() {
 
           {/* Globe side — matches ruixenui pattern: relative container, globe floats out */}
           <div className="relative h-[260px] w-full max-w-[480px] shrink-0">
-            <Globe className="absolute -bottom-16 -right-20 scale-[1.35] md:-bottom-24 md:-right-28 md:scale-[1.5]" />
+            <Globe className="absolute -bottom-16 -right-20 scale-[1.35] md:-bottom-24 md:-right-28 md:scale-[1.5]" inView={inView} />
           </div>
         </div>
       </motion.div>
