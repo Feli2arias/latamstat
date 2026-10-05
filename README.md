@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LatamStat
 
-## Getting Started
+Dashboard de indicadores socioeconómicos de América Latina y el Caribe, con datos de CEPALSTAT, consultas sobre Databricks y un asistente de IA que responde en español consultando los datos.
 
-First, run the development server:
+**Proyecto construido para un hackathon universitario: ULACIT x Databricks (Costa Rica).**
+
+> **Aviso:** actualmente los servidores de Databricks que alojan los datos están apagados, por lo que la aplicación no carga datos en vivo. Para correrla hay que contar con un workspace de Databricks propio, con un SQL Warehouse y las tablas descritas más abajo.
+
+## Funcionalidades
+
+- **Landing** (`/`): presentación del proyecto con un globo 3D interactivo (cobe) y animaciones.
+- **Dashboard** (`/dashboard`):
+  - Selector de indicador (10 indicadores de CEPAL: inflación, pobreza, desigualdad, desempleo, deuda pública, esperanza de vida, entre otros), de países y de rango de años.
+  - KPIs: año de referencia, valor más alto y valor más bajo.
+  - Series de tiempo comparando países.
+  - Pronóstico de 3 años por regresión lineal, activable desde el gráfico.
+  - Exportación de la serie a CSV.
+  - Tablas resumen por país: promedio del período, año más bajo y año más alto.
+  - Tema oscuro y tema claro accesible para daltonismo.
+- **Chat con IA**: panel rápido y modal de análisis completo. El modelo usa tool calling para generar y ejecutar SQL sobre Databricks, en un bucle de hasta 4 iteraciones, y responde citando país y año.
+- **Componentes y endpoints adicionales** (presentes en el repo, aún no montados en el dashboard actual): dispersión de inflación vs. pobreza (`ScatterPlot`, `/api/data/scatter`) y tabla comparativa por país con variación interanual (`ComparisonTable`, `/api/data/table`).
+
+## Stack
+
+- Next.js 16 (App Router), React 19, TypeScript
+- Tailwind CSS 4, Framer Motion, lucide-react
+- Recharts (gráficos) y cobe (globo 3D)
+- Databricks SQL Statement API sobre un SQL Warehouse
+- LLM servido desde Databricks Foundation Model APIs: `databricks-meta-llama-3-3-70b-instruct`
+
+## Datos
+
+Las consultas apuntan a tablas en `workspace.default` del workspace de Databricks:
+
+- `cepal_indicators`: indicadores CEPALSTAT (`iso3`, `country_name`, `year`, `indicator_id`, `indicator_name`, `category`, `value`, `dimension_1`, `unit`), unas 45.800 filas entre 1950 y 2025.
+- `cepal_final_dataset`: dataset de inflación (CPI) y pobreza usado por los endpoints de dispersión y tabla comparativa (`iso3`, `country_name`, `indicator`, `year_name`, `value`).
+
+Los datos no se incluyen en el repositorio: hay que cargarlos en tu propio workspace.
+
+## Cómo correrlo localmente
+
+Requisitos: Node.js 20.9 o superior y un workspace de Databricks con las tablas anteriores.
 
 ```bash
+npm install
+# crear .env.local con las variables de entorno de la sección siguiente
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abrí [http://localhost:3000](http://localhost:3000). Otros scripts: `npm run build`, `npm run start`, `npm run lint`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Variables de entorno
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Se definen en `.env.local` (ignorado por git):
 
-## Learn More
+- `DATABRICKS_HOST`
+- `DATABRICKS_TOKEN`
+- `DATABRICKS_WAREHOUSE_ID`
 
-To learn more about Next.js, take a look at the following resources:
+## Estructura del proyecto
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+app/
+  page.tsx              Landing con globo 3D
+  dashboard/page.tsx    Dashboard (KPIs, series, pronóstico, CSV, chat)
+  api/data/*            Endpoints de datos: kpis, countries, timeseries, scatter, table
+  api/chat/             Chat rápido con tool calling
+  api/chat/full/        Chat de análisis completo
+components/             KPICards, TimeSeriesChart, ScatterPlot, ComparisonTable, AIChat
+lib/databricks.ts       Cliente de SQL Warehouse y del LLM, esquema de datos
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Estado del proyecto
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Prototipo desarrollado para el hackathon. No se mantiene activamente y, mientras los servidores de Databricks sigan apagados, la aplicación no muestra datos en vivo.
