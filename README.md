@@ -73,3 +73,7 @@ lib/databricks.ts       Cliente de SQL Warehouse y del LLM, esquema de datos
 ## Estado del proyecto
 
 Prototipo desarrollado para el hackathon. No se mantiene activamente y, mientras los servidores de Databricks sigan apagados, la aplicación no muestra datos en vivo.
+
+## Licencia
+
+[MIT](LICENSE)
